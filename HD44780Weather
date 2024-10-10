@@ -4,24 +4,24 @@
 #include <ArduinoJson.h>  // JSON parsing
 #include <LiquidCrystal.h>  // For 6-pin 4-bit LCD
 
-const char* ssid = "";
-const char* password = "";
+const char* ssid = "";        // Your Wi-Fi SSID
+const char* password = "";   // Your Wi-Fi password
 
-// OpenWeatherMap Weather API endpoint
+// OpenWeatherMap API endpoint
 const char* apiEndpoint = "https://api.openweathermap.org/data/2.5/weather";
-const char* apiKey = " ";  // Replace with your API Key
+const char* apiKey = "";  // Replace with your OpenWeatherMap API Key
 
-// Coordinates for Cape Town
-const char* lat = "33.92";  // Latitude for Cape Town
-const char* lon = "18.42";  // Longitude for Cape Town
+// Coordinates for Cape Town, South Africa
+const char* lat = "-33.92";  // Latitude for Cape Town
+const char* lon = "18.42";   // Longitude for Cape Town
 
-// LCD pin configuration
-const int rs = D4;   // GPIO2
-const int en = D3;   // GPIO0
-const int d4 = D2;   // GPIO4
-const int d5 = D1;   // GPIO5
-const int d6 = D0;   // GPIO16
-const int d7 = D5;   // GPIO14
+// LCD pin configuration (adjust according to your setup)
+const int rs = D4;   // Register Select pin
+const int en = D3;   // Enable pin
+const int d4 = D2;   // Data pin 4
+const int d5 = D1;   // Data pin 5
+const int d6 = D0;   // Data pin 6
+const int d7 = D5;   // Data pin 7
 
 // Initialize the LCD in 4-bit mode with the defined pins
 LiquidCrystal lcd(rs, en, d4, d5, d6, d7);
@@ -29,36 +29,24 @@ LiquidCrystal lcd(rs, en, d4, d5, d6, d7);
 void setup() {
   Serial.begin(115200);
 
-  // Initialize LCD
-  lcd.begin(16, 2);
+  // Initialize the LCD
+  lcd.begin(16, 2);  // Set LCD to 16 columns and 2 rows
   lcd.clear();
   lcd.setCursor(0, 0);
-  lcd.print("Fetching...");
+  lcd.print("Fetching weather...");
 
   // Connect to Wi-Fi
   WiFi.begin(ssid, password);
   while (WiFi.status() != WL_CONNECTED) {
     delay(500);
     Serial.println("Connecting to WiFi...");
+    lcd.setCursor(0, 1);
+    lcd.print("Connecting...");
   }
-  Serial.println("WiFi Connected");
+  Serial.println("Connected to WiFi");
   lcd.clear();
-}
-
-// Function to scroll text from right to left
-void scrollText(String message, int row) {
-  int len = message.length();
-
-  if (len <= 16) {
-    lcd.setCursor(0, row);
-    lcd.print(message);
-  } else {
-    for (int i = 0; i < len - 15; i++) {
-      lcd.setCursor(0, row);
-      lcd.print(message.substring(i, i + 16));  // Print 16 characters at a time
-      delay(500);  // Delay between scrolls
-    }
-  }
+  lcd.setCursor(0, 1);
+  lcd.print("WiFi Connected");
 }
 
 void loop() {
@@ -95,17 +83,18 @@ void loop() {
         }
 
         // Extract weather information
-        JsonObject main = doc["main"];
-        double temperature = main["temp"];
-        const char* description = doc["weather"][0]["main"];  // Use short description (e.g., "Clear", "Clouds")
+        double temperature = doc["main"]["temp"];
+        const char* description = doc["weather"][0]["description"];
 
-        // Create the strings for scrolling
-        String tempString = "Temp: " + String(temperature, 1) + "C";  // e.g., "Temp: 23.1C"
-        String weatherString = "CPT Wthr: " + String(description);  // e.g., "Wthr: Clear"
+        // Display weather info on LCD
+        lcd.clear();
+        lcd.setCursor(0, 0);
+        lcd.print("Cape Town, SA");  // Display city and country
 
-        // Scroll the text on the LCD
-        scrollText(tempString, 0);  // Scroll temperature on the first row
-        scrollText(weatherString, 1);  // Scroll weather description on the second row
+        lcd.setCursor(0, 1);
+        lcd.print(String(temperature, 1));  // Display temperature
+        lcd.print("C, ");
+        lcd.print(description);  // Display weather description
 
         Serial.println("Temperature: " + String(temperature));
         Serial.println("Weather: " + String(description));
