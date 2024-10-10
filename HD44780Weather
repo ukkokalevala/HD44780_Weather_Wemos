@@ -1,0 +1,126 @@
+#include <ESP8266WiFi.h>  // Wi-Fi library for ESP8266
+#include <ESP8266HTTPClient.h>  // HTTP client
+#include <WiFiClientSecure.h>  // For HTTPS connections
+#include <ArduinoJson.h>  // JSON parsing
+#include <LiquidCrystal.h>  // For 6-pin 4-bit LCD
+
+const char* ssid = "";
+const char* password = "";
+
+// OpenWeatherMap Weather API endpoint
+const char* apiEndpoint = "https://api.openweathermap.org/data/2.5/weather";
+const char* apiKey = " ";  // Replace with your API Key
+
+// Coordinates for Cape Town
+const char* lat = "33.92";  // Latitude for Cape Town
+const char* lon = "18.42";  // Longitude for Cape Town
+
+// LCD pin configuration
+const int rs = D4;   // GPIO2
+const int en = D3;   // GPIO0
+const int d4 = D2;   // GPIO4
+const int d5 = D1;   // GPIO5
+const int d6 = D0;   // GPIO16
+const int d7 = D5;   // GPIO14
+
+// Initialize the LCD in 4-bit mode with the defined pins
+LiquidCrystal lcd(rs, en, d4, d5, d6, d7);
+
+void setup() {
+  Serial.begin(115200);
+
+  // Initialize LCD
+  lcd.begin(16, 2);
+  lcd.clear();
+  lcd.setCursor(0, 0);
+  lcd.print("Fetching...");
+
+  // Connect to Wi-Fi
+  WiFi.begin(ssid, password);
+  while (WiFi.status() != WL_CONNECTED) {
+    delay(500);
+    Serial.println("Connecting to WiFi...");
+  }
+  Serial.println("WiFi Connected");
+  lcd.clear();
+}
+
+// Function to scroll text from right to left
+void scrollText(String message, int row) {
+  int len = message.length();
+
+  if (len <= 16) {
+    lcd.setCursor(0, row);
+    lcd.print(message);
+  } else {
+    for (int i = 0; i < len - 15; i++) {
+      lcd.setCursor(0, row);
+      lcd.print(message.substring(i, i + 16));  // Print 16 characters at a time
+      delay(500);  // Delay between scrolls
+    }
+  }
+}
+
+void loop() {
+  if (WiFi.status() == WL_CONNECTED) {
+    WiFiClientSecure client;
+    client.setInsecure();  // Skip SSL certificate validation for testing
+
+    // Construct API URL
+    String url = String(apiEndpoint) + "?lat=" + lat + "&lon=" + lon + "&appid=" + String(apiKey) + "&units=metric";
+    Serial.println("Requesting URL: " + url);
+
+    HTTPClient http;
+    http.begin(client, url);  // HTTPS request
+    int httpCode = http.GET();
+
+    // Check HTTP request result
+    if (httpCode > 0) {
+      Serial.print("HTTP Response code: ");
+      Serial.println(httpCode);
+
+      if (httpCode == HTTP_CODE_OK) {
+        String payload = http.getString();
+        Serial.println("Payload received: ");
+        Serial.println(payload);  // Print the full response
+
+        // Parse JSON response
+        DynamicJsonDocument doc(2048);  // Increased buffer size
+        DeserializationError error = deserializeJson(doc, payload);
+
+        if (error) {
+          Serial.print("JSON Deserialization failed: ");
+          Serial.println(error.c_str());
+          return;
+        }
+
+        // Extract weather information
+        JsonObject main = doc["main"];
+        double temperature = main["temp"];
+        const char* description = doc["weather"][0]["main"];  // Use short description (e.g., "Clear", "Clouds")
+
+        // Create the strings for scrolling
+        String tempString = "Temp: " + String(temperature, 1) + "C";  // e.g., "Temp: 23.1C"
+        String weatherString = "CPT Wthr: " + String(description);  // e.g., "Wthr: Clear"
+
+        // Scroll the text on the LCD
+        scrollText(tempString, 0);  // Scroll temperature on the first row
+        scrollText(weatherString, 1);  // Scroll weather description on the second row
+
+        Serial.println("Temperature: " + String(temperature));
+        Serial.println("Weather: " + String(description));
+
+      } else {
+        Serial.println("Non-OK HTTP response");
+      }
+
+    } else {
+      Serial.print("HTTP Request failed, error code: ");
+      Serial.println(httpCode);
+    }
+
+    http.end();
+  }
+
+  delay(60000);  // Wait for 1 minute before the next request
+}
